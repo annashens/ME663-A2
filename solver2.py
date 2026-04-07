@@ -12,7 +12,28 @@ class Physics:
         p   = (self.gamma-1)*(rho*E - 0.5*rho*u**2)
         a   = np.sqrt(self.gamma*p/rho)
         return rho, u, E, p, a
+        return F
+    def _flux_split(self, UL, UR):
+        rhoL, uL, EL, pL, aL = self.U_to_primitive(UL)
+        rhoR, uR, ER, pR, aR = self.U_to_primitive(UR)
 
+        if self.scheme == 'sw':
+            Fp = self.build_SW_F(rhoL, uL, aL,
+                            self.lp(uL, aL, rhoL))
+            Fm = self.build_SW_F(rhoR, uR, aR,
+                            self.lm(uR, aR, rhoR))
+
+        elif self.scheme == 'vl':
+            # Fp = self.van_leer_flux_plus(rhoL, uL, pL, aL)
+            # Fm = self.van_leer_flux_minus(rhoR, uR, pR, aR)
+            Fp = self.build_SW_F(rhoL, uL, aL,
+                            self.lp(uL, aL, rhoL))
+            Fm = self.build_SW_F(rhoR, uR, aR,
+                            self.lm(uR, aR, rhoR))
+        else:
+            raise ValueError("Unknown scheme")
+
+        return Fp + Fm
     def lp(self, u, a, rho):
         if self.scheme == 'sw':
             return [max(u, 0.0), max(u + a, 0.0), max(u - a, 0.0)]
@@ -42,7 +63,7 @@ class Physics:
         else:
             raise ValueError('Unknown flux scheme')
 
-    def build_F(self, rho, u, a, L):
+    def build_SW_F(self, rho, u, a, L):
         gamma = self.gamma
         l1, l2, l3 = L
         
@@ -99,18 +120,10 @@ class Solver:
     def _calc_flux(self):
         F = np.zeros((self.N-1, 3))
         for i in range(self.N-1):
-            for offset in [0,1]:
-                rho, u, _, _, a = self.phys.U_to_primitive(self.U[i+offset])
-                if offset == 0: # left state
-                    Fp = self.phys.build_F(rho, u, a, self.phys.lp(u, a, rho))
-                else: # right state
-                    Fm = self.phys.build_F(rho, u, a, self.phys.lm(u, a, rho))
-            if self.flux == 'sw': # Steger-Warming
-                F[i] = Fp + Fm
-            elif self.flux == 'vl': # Van Leer
-                F[i] = Fp + Fm
-            else:
-                raise ValueError('Unknown flux scheme')
+                F[i] = self.phys._flux_split(
+                self.U[i],
+                self.U[i+1]
+            )
         return F
 
     def _calc_u(self):
