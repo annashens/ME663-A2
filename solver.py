@@ -17,13 +17,17 @@ class Physics:
         if self.scheme == 'sw':
             return [max(u, 0.0), max(u + a, 0.0), max(u - a, 0.0)]
         elif self.scheme == 'vl':
-            
-            gamma = self.gamma
             M = u/a
-            fp1 = (1/4)*a*rho*(M + 1)**2
-            l1 = fp1*(-M**2 + 2*M + gamma)/(rho*(gamma + 1))
-            l2 = fp1*(M**2*(gamma - 1) + M*(1 - 3*gamma) + 4*gamma + 2)/(rho*(gamma + 1))
-            l3 = fp1*(M**2*(gamma - 1) + M*(3 - gamma) - 2)/(rho*(gamma + 1))
+            if M <= -1.0:
+                return [0.0, 0.0, 0.0]
+            if M >= 1.0:
+                return [u - a, u, u + a]
+            gamma = self.gamma
+            
+            l1 = (1/4)*a*(M + 1)**2*(-(M - 1)**2/(gamma + 1) + 1)
+            l2 = (1/4)*a*(M + 1)**2*(-M + (M - 1)**2*(gamma - 1)/(gamma + 1) + 3)
+            l3 = (1/2)*a*(M - 1)*(M + 1)**2*(M*((1/2)*gamma - 1/2) + 1)/(gamma + 1)
+
             return [l1, l2, l3]
         else:
             raise ValueError('Unknown flux scheme')
@@ -32,13 +36,18 @@ class Physics:
         if self.scheme == 'sw':
             return [min(u, 0.0), min(u + a, 0.0), min(u - a, 0.0)]
         elif self.scheme=='vl':
-            gamma = self.gamma
             M = u/a 
+            if M >= 1.0:
+                return [0.0, 0.0, 0.0]
+            if M <= -1.0:
+                return [u - a, u, u + a]
+            gamma = self.gamma
+            
             fm1 = -1/4*a*rho*(M - 1)**2
-            l1 = fm1*(-M**2 - 2*M + gamma)/(rho*(gamma + 1))
-            l2 = fm1*(M**2*(gamma - 1) + M*(gamma - 3) - 2)/(rho*(gamma + 1))
-            l3 = fm1*(M**2*(gamma - 1) + M*(3*gamma - 1) + 4*gamma + 2)/(rho*(gamma + 1))
-            return [l1, l2, l3]
+            l1 = -1/4*a*(1 - M)**2*(-(-M - 1)**2/(gamma + 1) + 1)
+            l2 = -1/2*a*(1 - M)**2*(-M - 1)*(-M*((1/2)*gamma - 1/2) + 1)/(gamma + 1)
+            l3 = -1/4*a*(1 - M)**2*(M + (-M - 1)**2*(gamma - 1)/(gamma + 1) + 3)
+            return [l1, l2,l3 ]
         else:
             raise ValueError('Unknown flux scheme')
 
@@ -66,15 +75,16 @@ class Solver:
         self._build_grid(xmin, xmax, N) # build grid
         self._build_IC(wl, wr) # apply initial conditions
 
-        self.F = np.zeros((self.N-1,3))
+        self.F = np.zeros((self.N,3))
 
     def _build_grid(self, xmin, xmax, N):
-        self.N = N
+        self.N = N+1
         dx = (xmax - xmin)/(N)
         self.dx = dx
         # cell-centered grid
-        self.x =xmin + 0.5*dx + np.arange(N)*dx
-        
+        # self.x =xmin + 0.5*dx + np.arange(N)*dx
+        self.x = np.linspace(xmin, xmax, N+1)
+        print(self.x)
     def _build_IC(self, wl, wr):
         self.U = np.zeros((self.N,3))
 
