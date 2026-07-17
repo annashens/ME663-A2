@@ -1,0 +1,19 @@
+#!/bin/sh
+cd "${0%/*}" || exit 1   
+
+read -p "Enter flux scheme (sw/vl): " SCHEME
+
+# Normalize to lowercase
+SCHEME=$(echo "$SCHEME" | tr '[:upper:]' '[:lower:]')
+
+# Validate input
+if [ "$SCHEME" != "sw" ] && [ "$SCHEME" != "vl" ]; then
+    echo "Invalid scheme. Please enter 'sw' or 'vl'."
+    exit 1
+fi
+
+echo "Running solver with scheme: $SCHEME"
+
+python3 main.py "$SCHEME"
+
+echo "Done. Output written to ${SCHEME}_results.csv"
