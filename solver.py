@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 class Physics:
     def __init__(self, scheme, gamma=1.4):
@@ -67,11 +68,12 @@ class Physics:
         return (rho/(2*gamma)) * np.array([F1, F2, F3])
 
 class Solver:
-    def __init__(self, scheme, xmin, xmax, N, wl, wr, gamma=1.4, CFL=0.4):
+    def __init__(self, scheme, xmin, xmax, N, wl, wr, gamma=1.4, CFL=0.4, Umax=None):
         self.phys = Physics(gamma=gamma, scheme=scheme)
         self.flux = scheme
         self.CFL = CFL
-
+        self.Umax = Umax
+        
         self._build_grid(xmin, xmax, N) # build grid
         self._build_IC(wl, wr) # apply initial conditions
 
@@ -84,7 +86,6 @@ class Solver:
         # cell-centered grid
         # self.x =xmin + 0.5*dx + np.arange(N)*dx
         self.x = np.linspace(xmin, xmax, N+1)
-        print(self.x)
     def _build_IC(self, wl, wr):
         self.U = np.zeros((self.N,3))
 
@@ -115,12 +116,7 @@ class Solver:
                     Fp = self.phys.build_F(rho, u, a, self.phys.lp(u, a, rho))
                 else: # right state
                     Fm = self.phys.build_F(rho, u, a, self.phys.lm(u, a, rho))
-            if self.flux == 'sw': # Steger-Warming
-                F[i] = Fp + Fm
-            elif self.flux == 'vl': # Van Leer
-                F[i] = Fp + Fm
-            else:
-                raise ValueError('Unknown flux scheme')
+            F[i] = Fp + Fm
         return F
 
     def _calc_u(self):
@@ -137,12 +133,15 @@ class Solver:
         return U_new
 
     def _calc_dt(self):
-        max_speed = 0.0
-        for i in range(self.N):
-            _, u, _, _, a = self.phys.U_to_primitive(self.U[i])
-            max_speed = max(max_speed, abs(u) + a)
-        # CFL condition: dt = CFL * dx / max_speed
-        return self.CFL * self.dx / max_speed
+        if self.Umax is not None:
+            return self.dx*self.dx / self.Umax
+        else:
+            max_speed = 0
+            for i in range(self.N):
+                _, u, _, _, a = self.phys.U_to_primitive(self.U[i])
+                max_speed = max(max_speed, abs(u) + a)
+            # CFL condition: dt = CFL * dx / max_speed
+            return self.CFL * self.dx / max_speed
 
     def get_solution(self, return_df = True):
         rho = np.zeros(self.N)
@@ -155,7 +154,6 @@ class Solver:
             rho[i], u[i], E[i], p[i], a[i] = self.phys.U_to_primitive(self.U[i])
 
         if return_df:
-            import pandas as pd
             return pd.DataFrame({
                 'x': self.x,
                 'density': rho,
